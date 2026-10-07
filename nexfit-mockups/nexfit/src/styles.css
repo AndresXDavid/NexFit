@@ -1,0 +1,158 @@
+/* ============================================================
+   NexFit — Sistema de diseño
+   Paleta institucional UPTC (amarillo / negro) + neutros de apoyo
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@500&display=swap');
+
+:root {
+  /* Marca */
+  --nf-yellow: #FFC800;
+  --nf-yellow-deep: #E8B400;
+  --nf-black: #000000;
+  --nf-graphite: #1E1E1C;
+
+  /* Neutros */
+  --nf-bg: #FAFAF8;
+  --nf-surface: #FFFFFF;
+  --nf-line: #E7E5DF;
+  --nf-text: #14140F;
+  --nf-text-muted: #6B6A61;
+
+  /* Estados (uso mínimo, la paleta se apoya en amarillo/negro) */
+  --nf-ok: #2E7D46;
+
+  /* Tipografía */
+  --f-display: 'Anton', 'Arial Narrow', sans-serif;
+  --f-body: 'Work Sans', -apple-system, sans-serif;
+  --f-mono: 'Space Mono', monospace;
+
+  /* Forma */
+  --r-sm: 4px;
+  --r-md: 10px;
+  --r-lg: 22px;
+
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--nf-bg);
+  color: var(--nf-text);
+  font-family: var(--f-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--f-display);
+  font-weight: 400;
+  letter-spacing: 0.2px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+p { margin: 0; }
+
+button {
+  font-family: var(--f-body);
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+a { text-decoration: none; color: inherit; }
+
+::selection { background: var(--nf-yellow); color: var(--nf-black); }
+
+/* Foco de teclado visible en toda la app */
+:focus-visible {
+  outline: 3px solid var(--nf-black);
+  outline-offset: 2px;
+}
+
+/* --- Utilidades compartidas entre pantallas --- */
+
+.nf-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--nf-black);
+  color: var(--nf-yellow);
+  font-weight: 700;
+  font-size: 15px;
+  padding: 15px 20px;
+  border-radius: var(--r-md);
+  width: 100%;
+  transition: transform 0.15s ease;
+}
+.nf-btn-primary:active { transform: scale(0.98); }
+
+.nf-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  color: var(--nf-black);
+  font-weight: 600;
+  font-size: 15px;
+  padding: 14px 20px;
+  border-radius: var(--r-md);
+  border: 2px solid var(--nf-black);
+  width: 100%;
+}
+
+.nf-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 5px 10px;
+  border-radius: 100px;
+  background: var(--nf-bg);
+  border: 1.5px solid var(--nf-line);
+  color: var(--nf-text-muted);
+}
+
+.nf-input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  border: 2px solid var(--nf-line);
+  font-family: var(--f-body);
+  font-size: 15px;
+  background: var(--nf-surface);
+  color: var(--nf-text);
+}
+.nf-input:focus {
+  border-color: var(--nf-black);
+  outline: none;
+}
+
+.nf-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--nf-text);
+}
+
+/* Marco de dispositivo para presentar las pantallas del mockup */
+.nf-device {
+  width: 390px;
+  max-width: 100%;
+  min-height: 760px;
+  background: var(--nf-bg);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

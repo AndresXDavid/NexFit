@@ -1,0 +1,31 @@
+<div class="nf-device">
+
+  <header class="cabecera-perfil">
+    <div class="avatar">{{ usuario.nombre[0] }}</div>
+    <h1>{{ usuario.nombre }}</h1>
+    <p>{{ usuario.programa }} · {{ usuario.semestre }}.º semestre</p>
+    <div class="mini-stats">
+      <div><span>{{ usuario.entrenamientosCompletados }}</span>Entrenamientos</div>
+      <div class="divisor"></div>
+      <div><span>{{ usuario.racha }}</span>Racha (días)</div>
+    </div>
+  </header>
+
+  <main class="lista-opciones">
+    @for (op of opciones; track op.etiqueta) {
+      <button class="opcion">
+        <span class="opcion-icono"><nf-icon [name]="op.icono" /></span>
+        <span class="opcion-etiqueta">{{ op.etiqueta }}</span>
+        @if (op.valor) { <span class="opcion-valor">{{ op.valor }}</span> }
+        <span class="opcion-flecha"><nf-icon name="flecha" /></span>
+      </button>
+    }
+
+    <button class="opcion opcion-salir" (click)="cerrarSesion()">
+      <span class="opcion-icono"><nf-icon name="salir" /></span>
+      <span class="opcion-etiqueta">Cerrar sesión</span>
+    </button>
+  </main>
+
+  <nf-bottom-nav />
+</div>

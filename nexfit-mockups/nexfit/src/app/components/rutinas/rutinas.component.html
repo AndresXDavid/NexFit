@@ -1,0 +1,38 @@
+<div class="nf-device">
+
+  <header class="cabecera">
+    <h1>Rutinas</h1>
+    <p>Elige un entrenamiento para hoy</p>
+  </header>
+
+  <div class="filtros">
+    @for (cat of categorias; track cat) {
+      <button
+        class="filtro"
+        [class.activo]="categoriaActiva() === cat"
+        (click)="seleccionarCategoria(cat)"
+      >{{ cat }}</button>
+    }
+  </div>
+
+  <main class="lista">
+    @for (r of rutinasFiltradas(); track r.id) {
+      <button class="rutina-card" (click)="abrirRutina(r.id)">
+        <div class="rutina-info">
+          <span class="nf-tag">{{ r.categoria }}</span>
+          <h2>{{ r.nombre }}</h2>
+          <div class="rutina-meta">
+            <span><nf-icon name="reloj" /> {{ r.duracionMin }} min</span>
+            <span>{{ r.nivel }}</span>
+            <span>{{ r.caloriasAprox }} kcal</span>
+          </div>
+        </div>
+        <span class="rutina-flecha"><nf-icon name="flecha" /></span>
+      </button>
+    } @empty {
+      <p class="vacio">No hay rutinas en esta categoría todavía.</p>
+    }
+  </main>
+
+  <nf-bottom-nav />
+</div>

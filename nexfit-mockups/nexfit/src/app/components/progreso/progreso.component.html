@@ -1,0 +1,62 @@
+<div class="nf-device">
+
+  <header class="cabecera">
+    <h1>Tu progreso</h1>
+    <p>Últimas 6 semanas</p>
+  </header>
+
+  <main class="contenido">
+
+    <section class="stats-mes">
+      <div class="stat-mes">
+        <span class="valor">{{ resumenMes.entrenamientos }}</span>
+        <span class="etiqueta">Entrenamientos</span>
+      </div>
+      <div class="stat-mes">
+        <span class="valor">{{ resumenMes.minutos }}</span>
+        <span class="etiqueta">Minutos activos</span>
+      </div>
+      <div class="stat-mes">
+        <span class="valor">{{ resumenMes.promedioSemanal }}</span>
+        <span class="etiqueta">Prom. semanal</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Constancia semanal</h3>
+      <div class="grafico-barras">
+        @for (v of constancia; track $index) {
+          <div class="barra-col">
+            <div class="barra-track">
+              <div class="barra-relleno" [style.height.%]="(v / metaSemanal) * 100"></div>
+            </div>
+            <span class="barra-valor">{{ v }}/{{ metaSemanal }}</span>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Peso corporal</h3>
+      <svg
+        class="grafico-linea"
+        [attr.viewBox]="'0 0 ' + anchoSvg + ' ' + altoSvg"
+        preserveAspectRatio="none"
+      >
+        <polyline [attr.points]="puntosLinea" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+      </svg>
+      <div class="linea-etiquetas">
+        @for (p of peso; track p.semana) {
+          <span>{{ p.semana }}</span>
+        }
+      </div>
+      <p class="linea-resumen">
+        {{ peso[0].kg }} kg → {{ peso[peso.length - 1].kg }} kg
+        <span class="linea-delta">({{ deltaPeso }})</span>
+      </p>
+    </section>
+
+  </main>
+
+  <nf-bottom-nav />
+</div>

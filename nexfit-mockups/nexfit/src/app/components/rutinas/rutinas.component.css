@@ -1,0 +1,74 @@
+.cabecera { padding: 28px 20px 6px; }
+.cabecera h1 { font-size: 26px; }
+.cabecera p { font-size: 13px; color: var(--nf-text-muted); margin-top: 4px; }
+
+.filtros {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  overflow-x: auto;
+}
+.filtro {
+  flex: none;
+  padding: 9px 16px;
+  border-radius: 100px;
+  border: 1.5px solid var(--nf-line);
+  background: var(--nf-surface);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nf-text-muted);
+}
+.filtro.activo {
+  background: var(--nf-black);
+  border-color: var(--nf-black);
+  color: var(--nf-yellow);
+}
+
+.lista {
+  flex: 1;
+  padding: 4px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rutina-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  text-align: left;
+  background: var(--nf-surface);
+  border: 1.5px solid var(--nf-line);
+  border-radius: var(--r-md);
+  padding: 16px;
+}
+
+.rutina-info { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rutina-info h2 { font-size: 17px; }
+
+.rutina-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--nf-text-muted);
+  font-weight: 600;
+}
+.rutina-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.rutina-meta nf-icon { width: 13px; height: 13px; }
+
+.rutina-flecha {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--nf-yellow);
+  color: var(--nf-black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.vacio { text-align: center; color: var(--nf-text-muted); font-size: 13px; padding: 40px 0; }

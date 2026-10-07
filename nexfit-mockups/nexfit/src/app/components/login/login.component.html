@@ -1,0 +1,54 @@
+<div class="nf-device login-shell">
+
+  <section class="login-hero">
+    <span class="marca-uptc">Universidad Pedagógica y Tecnológica de Colombia</span>
+    <h1 class="wordmark">Nex<span>Fit</span></h1>
+    <p class="claim">Tu entrenamiento, organizado por semestre.</p>
+  </section>
+
+  <section class="login-form">
+    <h2 class="form-title">Iniciar sesión</h2>
+
+    <form (ngSubmit)="ingresar()">
+      <div class="nf-field">
+        <label for="correo">Correo institucional</label>
+        <input
+          id="correo"
+          class="nf-input"
+          type="email"
+          placeholder="usuario@uptc.edu.co"
+          [(ngModel)]="correo"
+          name="correo"
+          required
+        />
+      </div>
+
+      <div class="nf-field">
+        <label for="clave">Contraseña</label>
+        <div class="campo-clave">
+          <input
+            id="clave"
+            class="nf-input"
+            [type]="mostrarClave() ? 'text' : 'password'"
+            placeholder="••••••••"
+            [(ngModel)]="clave"
+            name="clave"
+            required
+          />
+          <button type="button" class="boton-ojo" (click)="alternarClave()" aria-label="Mostrar u ocultar contraseña">
+            <nf-icon name="ojo" />
+          </button>
+        </div>
+      </div>
+
+      <a href="javascript:void(0)" class="olvide">¿Olvidaste tu contraseña?</a>
+
+      <button type="submit" class="nf-btn-primary">Ingresar</button>
+    </form>
+
+    <p class="pie-registro">
+      ¿Primera vez en NexFit? <a routerLink="/inicio">Crea tu cuenta</a>
+    </p>
+  </section>
+
+</div>

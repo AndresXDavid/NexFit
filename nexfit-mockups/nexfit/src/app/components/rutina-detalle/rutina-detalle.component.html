@@ -1,0 +1,47 @@
+<div class="nf-device">
+
+  <header class="cabecera-activa">
+    <button class="boton-atras" (click)="salir()" aria-label="Salir del entrenamiento">
+      <nf-icon name="atras" />
+    </button>
+    <div class="titulo-activo">
+      <p class="etiqueta">Entrenamiento en curso</p>
+      <h1>{{ nombreRutina }}</h1>
+    </div>
+    <div class="cronometro">
+      <nf-icon name="reloj" />
+      <span>{{ tiempoFormateado() }}</span>
+    </div>
+  </header>
+
+  <div class="barra-progreso-wrap">
+    <div class="barra-progreso">
+      <div class="barra-progreso-relleno" [style.width.%]="progreso()"></div>
+    </div>
+    <span class="progreso-texto">{{ completados() }} de {{ ejercicios().length }} ejercicios</span>
+  </div>
+
+  <main class="lista-ejercicios">
+    @for (ej of ejercicios(); track ej.id; let i = $index) {
+      <button
+        class="ejercicio-card"
+        [class.hecho]="ej.completado"
+        (click)="alternarCompletado(ej.id)"
+      >
+        <span class="ejercicio-numero">{{ i + 1 }}</span>
+        <div class="ejercicio-info">
+          <h2>{{ ej.nombre }}</h2>
+          <p>{{ ej.series }} series · {{ ej.repeticiones }} · descanso {{ ej.descanso }}</p>
+        </div>
+        <span class="ejercicio-check">
+          @if (ej.completado) { <nf-icon name="check" /> }
+        </span>
+      </button>
+    }
+  </main>
+
+  <footer class="pie-activo">
+    <button class="nf-btn-primary" (click)="finalizar()">Finalizar entrenamiento</button>
+  </footer>
+
+</div>

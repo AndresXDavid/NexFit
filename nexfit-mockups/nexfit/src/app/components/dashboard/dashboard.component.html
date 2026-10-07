@@ -1,0 +1,60 @@
+<div class="nf-device">
+
+  <header class="top-bar">
+    <div>
+      <p class="saludo">Hola, {{ usuario.nombre.split(' ')[0] }}</p>
+      <p class="programa">{{ usuario.programa }} · {{ usuario.semestre }}.º semestre</p>
+    </div>
+    <div class="racha" title="Días consecutivos entrenando">
+      <span class="racha-icon"><nf-icon name="fuego" /></span>
+      <span>{{ usuario.racha }}</span>
+    </div>
+  </header>
+
+  <main class="contenido">
+
+    <section class="tarjeta-hoy">
+      <span class="nf-tag tarjeta-hoy-tag">Entrenamiento de hoy</span>
+      <h2 class="tarjeta-hoy-titulo">{{ rutinaDeHoy.nombre }}</h2>
+      <div class="tarjeta-hoy-meta">
+        <span><nf-icon name="reloj" /> {{ rutinaDeHoy.duracionMin }} min</span>
+        <span>{{ rutinaDeHoy.caloriasAprox }} kcal aprox.</span>
+        <span>{{ rutinaDeHoy.nivel }}</span>
+      </div>
+      <button class="nf-btn-primary boton-comenzar" (click)="comenzarEntrenamiento()">
+        Comenzar entrenamiento
+      </button>
+    </section>
+
+    <section class="semana">
+      <div class="semana-encabezado">
+        <h3>Esta semana</h3>
+        <span class="semana-meta">{{ usuario.racha }} / {{ usuario.metaSemanal }} sesiones</span>
+      </div>
+      <div class="semana-dias">
+        @for (d of semana; track d.dia) {
+          <div class="dia" [class.hecho]="d.completado">
+            <span class="dia-letra">{{ d.dia }}</span>
+            <span class="dia-marca">
+              @if (d.completado) { <nf-icon name="check" /> }
+            </span>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="stat-card">
+        <span class="stat-valor">{{ usuario.entrenamientosCompletados }}</span>
+        <span class="stat-etiqueta">Entrenamientos completados</span>
+      </div>
+      <div class="stat-card stat-card--oscura">
+        <span class="stat-valor">6.2h</span>
+        <span class="stat-etiqueta">Tiempo activo esta semana</span>
+      </div>
+    </section>
+
+  </main>
+
+  <nf-bottom-nav />
+</div>
