@@ -106,6 +106,7 @@ Todo cambio entra por PR contra `develop`, con la plantilla: issue que cierra, �
 
 ## CI/CD
 
-- `ci.yml` corre en cada PR: `backend` (compila y ejecuta las pruebas con Testcontainers sobre PostgreSQL 18, lo que incluye correr las migraciones Flyway desde cero) y `frontend` (build de Angular).
+- `ci.yml` corre en cada PR: `backend` (compila y ejecuta las pruebas con Testcontainers sobre PostgreSQL 18, lo que incluye correr las migraciones Flyway desde cero) y `frontend` (lint con `npm run lint` y build de Angular). Ambos jobs deben pasar para poder mezclar; el resultado se ve en la sección de checks del PR.
 - Despliegue: `main` → Cloud Run (API, `backend/Dockerfile`) + Vercel (frontend), con la BD en Neon. Se configura con TT-09; la idea es desplegar desde la primera semana para que R6 no sea un «big bang».
-- Pendientes: lint del frontend (TT-08), respaldo diario (TT-10) y cierre de ingresos (US-38) se agregan con sus issues.
+- **Pendiente (dueño del repo, Andrés Pérez):** configurar la protección de `develop` descrita en «Protección de ramas» (status checks `backend` y `frontend` obligatorios). Hasta entonces el CI informa, pero GitHub no bloquea la fusión de un PR con checks en rojo.
+- Pendientes: pruebas del frontend en el CI (aún no hay `*.spec.ts`), respaldo diario (TT-10) y cierre de ingresos (US-38) se agregan con sus issues.
