@@ -1,0 +1,111 @@
+# Convenciones de trabajo
+
+Basadas en la «Propuesta de forma de trabajo del repositorio» (Jeferson) y en la instrucción del profesor sobre los mensajes de commit.
+
+## Estructura: un monorepo
+
+```
+NexFit/
+├── .github/workflows/      # ci.yml (jobs: backend, frontend)
+├── docs/                   # arquitectura (ADRs), modelo-datos, api
+├── frontend/               # Angular 22
+├── backend/                # Spring Boot 4.1 — src/main/java/com/nexfit/
+│   └── src/main/resources/db/migration/   # V1__, V2__, ... (Flyway)
+├── db/seeds/               # NEX-15 arranque · NEX-18 datos de prueba
+├── compose.yaml            # PostgreSQL 18 local
+└── README.md
+```
+
+Un solo repositorio: el backend es un monolito modular que se despliega como una unidad, y varios repos multiplicarían CI y despliegues sin beneficio para cuatro personas.
+
+## Módulos del backend
+
+Un paquete por módulo, directamente bajo `com.nexfit` (nombres en inglés, como las tablas del MER):
+
+| Módulo | Recorridos | | Módulo | Recorridos |
+| -- | -- | -- | -- | -- |
+| `auth` | R0 · R5 | | `attendance` | R2 |
+| `organization` | R1 | | `training` | R3 · R4 |
+| `membership` | R1 · R2 · R5 | | `resource` | R1 · R6 |
+| `payment` | R2 · R5 | | `audit` | R5 |
+| `booking` | R3 | | `shared` | todos |
+
+Lo que esté en el paquete raíz del módulo es su API pública; los subpaquetes (`internal`, etc.) son privados. `ModularityTests` falla si un módulo usa clases internas de otro. `shared` es el único que todos pueden usar.
+
+## Ramas: `main`, `develop` y una por issue
+
+| Rama | Uso |
+| -- | -- |
+| `main` | Lo desplegado. Solo cambia cuando el integrador (Andrés) pasa `develop` → `main`, después de probar que nada esté roto. Mínimo una vez por semana. |
+| `develop` | Integración del ciclo. Nadie sube directo: todo entra por Pull Request. |
+| `usuario/nex-xx-descripcion-corta` | Una rama por issue, creada desde `develop`. La genera Linear con «Copy git branch name». |
+
+- Una rama = una issue. Vida máxima de 2–3 días: si crece, se parte la issue.
+- El PR hacia `develop` no necesita revisión de otra persona: basta con el CI en verde (`backend` y `frontend`), y el autor lo mezcla con **Squash and merge**. Si el PR toca migraciones o seguridad, avisa en el grupo antes de mezclar.
+- La rama se borra al mezclarse (GitHub: Settings → General → «Automatically delete head branches»).
+- El paso `develop` → `main` lo hace el integrador con un PR y **Create a merge commit** (no squash), para que las dos ramas no se desalineen.
+
+**Protección de ramas** (solo la configura el dueño del repositorio: Settings → Branches → Add rule):
+- `develop` y `main`: Require a pull request before merging (0 aprobaciones), Require status checks to pass (`backend` y `frontend`) y Block force pushes.
+- En Settings → General → Pull Requests deja activos **Allow squash merging** y **Allow merge commits**.
+
+## Commits: convención del profesor + trazabilidad
+
+```
+<tipo>(<módulo>): <descripción en imperativo> — NEX-xx.
+```
+
+| Tipo | Uso | Ejemplo |
+| -- | -- | -- |
+| `feat` | Nueva funcionalidad | `feat(booking): añadir reserva de clases en tiempo real — NEX-41.` |
+| `fix` | Corrección de un error | `fix(membership): corregir cobro duplicado de la membresía mensual — NEX-58.` |
+| `docs` | Solo documentación | `docs(api): actualizar documentación de la API de clientes — NEX-70.` |
+| `refactor` | Reestructura sin cambiar comportamiento | `refactor(training): simplificar asignación de entrenadores personales — NEX-33.` |
+| `chore` | Mantenimiento, dependencias, CI | `chore(db): actualizar dependencias de Flyway — NEX-11.` |
+| `style` | Formato visual, sin lógica | `style(frontend): ajustar márgenes y colores en horarios — NEX-44.` |
+| `test` | Agregar o corregir pruebas | `test(membership): agregar pruebas unitarias de cancelación — NEX-52.` |
+
+- Descripción en español y con verbo en infinitivo («añadir», «corregir», «actualizar»), como en los ejemplos del profesor.
+- El módulo es el del monorepo: `auth`, `organization`, `membership`, `payment`, `booking`, `attendance`, `training`, `resource`, `audit`, o `db`, `frontend`, `ci`, `docs`. Si el cambio toca varios, se usa el principal o se parte el commit.
+- `— NEX-xx.` al final es obligatorio: conecta el commit con el tablero y con los requisitos.
+- **Prohibidos:** `cambios`, `fix bug`, `wip`, `últimos ajustes`, commits sin tipo o sin NEX-xx.
+
+Con *squash merge*, el commit que queda en `develop` toma el título del Pull Request, así que el título del PR sigue este mismo formato.
+
+## Pull Requests
+
+Todo cambio entra por PR contra `develop`, con la plantilla: issue que cierra, ¿toca migraciones?, ¿cambia la API?, pruebas. Para mezclar basta el CI en verde: no se exige aprobación de otra persona (decisión del equipo del 17/10/2026, por tiempo). El CI y el integrador son el control. El PR es donde se detectan conflictos de migraciones y cambios de API antes de romperle el trabajo a otro.
+
+## Flujo de una issue (atado a Linear)
+
+1. En Linear: asígnatela y pásala a **In Progress**.
+2. Crea la rama desde `develop` con el nombre que da Linear.
+3. Abre el PR hacia `develop` con `Closes NEX-xx` en la descripción: Linear la pasa a **In Review**.
+4. Con CI en verde, **Squash and merge**: Linear la pasa a **Done**.
+
+**Definition of Done:** criterios de aceptación verificados, pruebas automáticas de las reglas nuevas, CI en verde y sin secretos en el código.
+
+## Base de datos: migraciones Flyway como código
+
+- Solo en `backend/src/main/resources/db/migration`: `V1__spring_session_jdbc.sql` → `V2__...` (MER v4: 23 tablas, 10 enums, NEX-12) → `V3__...` por cada cambio posterior.
+- Nunca se edita una migración ya fusionada. Nunca SQL manual contra Neon ni contra local.
+- Toda consulta de datos de un gimnasio filtra por `organization_id` (aislamiento, RNF-01). Cada endpoint nuevo lleva su prueba de autorización (TT-11).
+
+## Frontend
+
+- Angular 22 con componentes standalone. Los mockups de Jeferson (rama `mockups`) entran por PR sobre `frontend/`.
+- Las llamadas a la API usan rutas relativas `/api/...` con `HttpClient`.
+- No se guardan tokens en el navegador: la sesión viaja en una cookie HttpOnly (RF-01, RF-02).
+
+## Secretos (RNF-14)
+
+- Nunca en el código ni en commits: contraseñas, claves, cadenas de conexión.
+- En local van en `.env` (ignorado por git); la lista de variables está en `.env.example`.
+- En producción: variables de Cloud Run y GitHub Secrets.
+- Si se sube un secreto por error, se **rota** de inmediato (cambiarlo en Neon/GCP); borrarlo del historial no basta.
+
+## CI/CD
+
+- `ci.yml` corre en cada PR: `backend` (compila y ejecuta las pruebas con Testcontainers sobre PostgreSQL 18, lo que incluye correr las migraciones Flyway desde cero) y `frontend` (build de Angular).
+- Despliegue: `main` → Cloud Run (API, `backend/Dockerfile`) + Vercel (frontend), con la BD en Neon. Se configura con TT-09; la idea es desplegar desde la primera semana para que R6 no sea un «big bang».
+- Pendientes: lint del frontend (TT-08), respaldo diario (TT-10) y cierre de ingresos (US-38) se agregan con sus issues.
