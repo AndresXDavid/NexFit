@@ -93,7 +93,7 @@ Todo cambio entra por PR contra `develop`, con la plantilla: issue que cierra, Â
 
 ## Frontend
 
-- Angular 22 con componentes standalone. Los mockups de Jeferson (rama `mockups`) entran por PR sobre `frontend/`.
+- Angular 22 con componentes standalone. La rama mockups es solo referencia visual, por ahora, no se fusiona. Cada pantalla se construye desde su issue en frontend/.
 - Las llamadas a la API usan rutas relativas `/api/...` con `HttpClient`.
 - No se guardan tokens en el navegador: la sesiÃ³n viaja en una cookie HttpOnly (RF-01, RF-02).
 
