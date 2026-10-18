@@ -291,6 +291,46 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- Coherencia multi-organización + unicidades de negocio.
+-- Recuperadas del paquete del 12/10 y adaptadas al MER v4 (allí se perdieron
+-- al simplificar las FK). Siguen el patrón D-04/D-05: la organización de cada
+-- fila hija debe coincidir con la de su padre.
+-- ---------------------------------------------------------------------------
+-- Soporte para las FK compuestas (el par es trivialmente único por ser id PK)
+ALTER TABLE classes  ADD CONSTRAINT uq_classes_org_id  UNIQUE (organization_id, id);
+ALTER TABLE branches ADD CONSTRAINT uq_branches_org_id UNIQUE (organization_id, id);
+
+ALTER TABLE class_bookings
+  ADD CONSTRAINT fk_class_bookings_org_class
+  FOREIGN KEY (organization_id, class_id) REFERENCES classes (organization_id, id),
+  ADD CONSTRAINT fk_class_bookings_org_member
+  FOREIGN KEY (organization_id, member_id) REFERENCES organization_members (organization_id, id);
+
+ALTER TABLE check_ins
+  ADD CONSTRAINT fk_check_ins_org_branch
+  FOREIGN KEY (organization_id, branch_id) REFERENCES branches (organization_id, id),
+  ADD CONSTRAINT fk_check_ins_org_member
+  FOREIGN KEY (organization_id, member_id) REFERENCES organization_members (organization_id, id),
+  ADD CONSTRAINT fk_check_ins_org_registered_by
+  FOREIGN KEY (organization_id, registered_by_member_id) REFERENCES organization_members (organization_id, id);
+
+ALTER TABLE classes
+  ADD CONSTRAINT fk_classes_org_branch
+  FOREIGN KEY (organization_id, branch_id) REFERENCES branches (organization_id, id);
+
+ALTER TABLE memberships
+  ADD CONSTRAINT fk_memberships_org_member
+  FOREIGN KEY (organization_id, member_id) REFERENCES organization_members (organization_id, id);
+
+-- Una sola reserva activa por miembro y clase
+CREATE UNIQUE INDEX uq_bookings_one_active ON class_bookings (class_id, member_id)
+  WHERE (status = 'confirmed');
+
+-- Un solo check-in abierto por miembro
+CREATE UNIQUE INDEX uq_checkins_one_open ON check_ins (member_id)
+  WHERE (check_out_at IS NULL);
+
+-- ---------------------------------------------------------------------------
 -- Vista: membresías con estado efectivo (MER v4 §7.3)
 -- ---------------------------------------------------------------------------
 CREATE VIEW v_memberships_effective AS
