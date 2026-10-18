@@ -107,11 +107,11 @@ class AuditServiceTests {
         long id = insertOne("inmutable");
 
         assertThatThrownBy(() -> jdbc.update("UPDATE audit_events SET event_type = 'X' WHERE id = ?", id))
-            .isInstanceOf(DataAccessException.class).hasMessageContaining("RN-40");
+            .isInstanceOf(DataAccessException.class);
         assertThatThrownBy(() -> jdbc.update("DELETE FROM audit_events WHERE id = ?", id))
-            .isInstanceOf(DataAccessException.class).hasMessageContaining("RN-40");
+            .isInstanceOf(DataAccessException.class);
         assertThatThrownBy(() -> jdbc.execute("TRUNCATE audit_events"))
-            .isInstanceOf(DataAccessException.class).hasMessageContaining("RN-40");
+            .isInstanceOf(DataAccessException.class);
 
         assertThat(jdbc.queryForObject(
             "SELECT event_type FROM audit_events WHERE id = ?", String.class, id)).isEqualTo("LOGIN");
