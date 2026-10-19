@@ -2,17 +2,19 @@
 
 ## Decisión: Azure Container Apps en lugar de Google Cloud Run
 
-El backend se despliega en **Azure Container Apps** (Azure for Students, grupo de recursos `nexfit-rg`, región `eastus2`, ya creado), no en Google Cloud Run como dicen TT-04 y el SRS 2.4.
+El backend se despliega en **Azure Container Apps** (Azure for Students, grupo de recursos `nexfit-rg`), no en Google Cloud Run como dicen TT-04 y el SRS 2.4.
 
 **Razón:** Google Cloud exige en Colombia un prepago de COP 100.000 que el equipo no puede pagar; Azure for Students no pide tarjeta.
 
-> **Pendiente:** actualizar TT-04 y el SRS 2.4 (y el comentario «Cloud Run» de `application.yml`, el `Dockerfile` y `docs/CONVENCIONES.md`) para reflejar Azure.
+**Región: `canadacentral`.** La política de la suscripción de estudiantes limita las regiones permitidas; el entorno y la app están en `canadacentral` (el grupo `nexfit-rg` se creó en `eastus2`, y un grupo de recursos puede contener recursos de otra región).
+
+> **Pendiente:** actualizar TT-04 y el SRS 2.4 para reflejar Azure (`docs/CONVENCIONES.md` ya está actualizado).
 
 ## Arquitectura
 
 ```
 Navegador ──HTTPS──> Vercel (frontend Angular)
-                       │  rewrite /api/*
+                       │  rewrite /api/*  (frontend/vercel.json)
                        ▼
                  Azure Container Apps (backend Spring Boot, :8080)
                        │  JDBC + TLS
@@ -20,7 +22,13 @@ Navegador ──HTTPS──> Vercel (frontend Angular)
                      Neon (PostgreSQL)
 ```
 
-El navegador solo habla con Vercel; la cookie de sesión es de ese dominio, por eso no hay CORS.
+El navegador solo habla con Vercel; la cookie de sesión es de ese dominio, por eso no hay CORS. El destino del rewrite es `https://nexfit-api.graywave-daeea4a9.canadacentral.azurecontainerapps.io/api/:path*`.
+
+## Estado verificado
+
+- Backend desplegado en Azure Container Apps (`nexfit-api`).
+- `GET /api/actuator/health` por HTTPS responde 200.
+- `http://` redirige con 301 a HTTPS.
 
 ## Variables de entorno
 
@@ -35,58 +43,66 @@ Sin valores en el repositorio. Las sensibles se guardan como **secretos de Conta
 | `COOKIE_SECURE` | variable | `true` en producción |
 | `PORT` | variable | `8080` (debe coincidir con el puerto del ingress) |
 
-## Pasos con `az`
+## Cómo se despliega
 
-Los comandos de esta sección **no se han ejecutado todavía**: están tomados de la CLI de Azure y deben comprobarse con `az containerapp <comando> --help` antes de usarlos. Los marcados «sin verificar» tienen además opciones cuya sintaxis exacta no se ha confirmado.
+Lo que se comprobó al desplegar, y que condiciona el procedimiento:
 
-```bash
-# 1. Extensión y proveedores (sin verificar)
-az extension add --name containerapp --upgrade
-az provider register --namespace Microsoft.App
-az provider register --namespace Microsoft.OperationalInsights
+1. **La imagen se construye en local y se sube a Azure Container Registry (ACR).** ACR Tasks (`az acr build`) no está permitido en la suscripción de estudiantes, así que: `docker build` sobre `backend/Dockerfile` (puerto 8080), `docker push` al ACR y crear/actualizar la app desde esa imagen.
+2. **El ACR se usa con las credenciales de administrador.** La identidad administrada no es compatible con el entorno *express* de Container Apps.
+3. **Ingress externo, puerto 8080, máximo 1 réplica.** El mínimo de réplicas sigue por decidir (ver abajo).
+4. **Secretos y variables** de la tabla anterior, con `secretref:` para las sensibles.
+5. **URL pública:** se lee con `az containerapp show --name nexfit-api --resource-group nexfit-rg --query properties.configuration.ingress.fqdn -o tsv` y va en `frontend/vercel.json`.
 
-# 2. Entorno de Container Apps en el grupo existente (sin verificar)
-az containerapp env create --name nexfit-env --resource-group nexfit-rg --location eastus2
+Este documento ya no lista los comandos `az` exactos de creación del entorno y la app: los del borrador anterior (por ejemplo `az containerapp up --source`, que construye en la nube) no son válidos en esta suscripción. Antes de repetir el despliegue, comprobar cada comando con `az containerapp <comando> --help`.
 
-# 3. App desde backend/Dockerfile (sin verificar): construye la imagen en la nube a partir del código fuente
-az containerapp up --name nexfit-api --resource-group nexfit-rg --environment nexfit-env \
-  --source ./backend --ingress external --target-port 8080
+### Dificultades conocidas
 
-# 4. Secretos y variables (sin verificar)
-az containerapp secret set --name nexfit-api --resource-group nexfit-rg \
-  --secrets db-url=<...> db-user=<...> db-password=<...>
-az containerapp update --name nexfit-api --resource-group nexfit-rg \
-  --set-env-vars DB_URL=secretref:db-url DB_USER=secretref:db-user DB_PASSWORD=secretref:db-password \
-                 DB_POOL_SIZE=5 COOKIE_SECURE=true PORT=8080
+- **Logs:** `az containerapp logs show` falla en este entorno; se usa **Log stream** del portal de Azure.
+- **Neon:** el nombre de la base **distingue mayúsculas y minúsculas**; debe coincidir exactamente con el de `DB_URL`.
+- **Flyway exige una base vacía** en el primer arranque (o con su historial); si la base ya tiene tablas ajenas a Flyway, la migración falla.
+- **Arranque en frío:** unos 30 s.
 
-# 5. Réplicas (sin verificar): máximo 1; mínimo por decidir (ver abajo)
-az containerapp update --name nexfit-api --resource-group nexfit-rg --min-replicas 0 --max-replicas 1
+**Réplicas.** Máximo 1. Mínimo 0 (gratis, pero el primer acceso tras inactividad paga unos 30 s de arranque en frío) o 1 (sin arranque en frío, consume cuota). Decisión pendiente: tomarla con el costo real y el resultado del monitor.
 
-# 6. Ingress solo HTTPS (sin verificar el nombre exacto de la opción)
-az containerapp ingress update --name nexfit-api --resource-group nexfit-rg --allow-insecure false
+**IP del cliente.** `application.yml` usa `server.forward-headers-strategy: native` y `server.tomcat.remoteip.internal-proxies: .*`, y lee la IP del cliente de la cabecera `server.tomcat.remoteip.remote-ip-header`, que se fija con la variable `CLIENT_IP_HEADER` (por defecto `X-Forwarded-For`). `getRemoteAddr()` y, por tanto, `audit_events.ip_address` salen de esa cabecera.
 
-# 7. URL pública (la que va en el rewrite de vercel.json)
-az containerapp show --name nexfit-api --resource-group nexfit-rg \
-  --query properties.configuration.ingress.fqdn -o tsv
-```
+Verificado en producción:
 
-**Réplicas.** Máximo 1. Mínimo 0 (gratis, pero el primer acceso tras inactividad paga el arranque en frío de Spring Boot) o 1 (sin arranque en frío, consume cuota). Decidirlo midiendo el tiempo de arranque en frío con `curl -w '%{time_total}'` sobre `/api/actuator/health` tras varios minutos sin tráfico.
+- El ingreso de Azure Container Apps **sobrescribe `X-Forwarded-For`** con la IP que ve. Llamando directo a Azure, un `X-Forwarded-For` falso se ignora y se guarda la IP real del cliente.
+- Por Vercel (rewrite `/api/*`), Azure ve la IP de egreso de Vercel, así que con el valor por defecto `audit_events` guardaba esa IP (13.220.58.21) en vez de la del cliente. Vercel **no** entrega al backend un `X-Forwarded-For` con la IP del cliente.
 
-**IP del cliente.** `application.yml` usa `server.forward-headers-strategy: native` y `server.tomcat.remoteip.internal-proxies: .*` para que `getRemoteAddr()` (y, por tanto, `audit_events.ip_address`) sea la primera IP de `X-Forwarded-For`, la del cliente, y no la del proxy.
+Solución: en Azure se fija `CLIENT_IP_HEADER=X-Real-IP`, sin reconstruir la imagen. **Verificado en producción:** por Vercel, con esa variable, `audit_events` guarda la IP real del cliente (antes guardaba la de egreso de Vercel). `X-Vercel-Forwarded-For` queda como alternativa si `X-Real-IP` dejara de servir.
+
+## Frontend en Vercel
+
+- Se desplegó con la **CLI de Vercel** (`vercel`), sin conectar el repositorio de GitHub: el dueño del repositorio es otro usuario y no se pudo importar.
+- Proyecto `nexfit`, URL https://nexfit-vert.vercel.app.
+- **Deployment Protection (Vercel Authentication) está desactivada** para que la URL sea pública.
+- El rewrite de `/api/*` hacia Azure funciona.
+- **No hay redespliegue automático por push:** cada cambio del frontend exige volver a desplegar con la CLI.
 
 ## Monitor externo y cálculo del 95 % (RNF-04)
 
-- **URL:** `https://<dominio>/api/actuator/health` (sin tocar la BD: `management.health.db.enabled=false`, así el monitor no despierta Neon).
-- **Frecuencia:** cada 5 minutos, desde un servicio externo de monitoreo HTTP (que no esté en Azure), esperando HTTP 200 y con un tiempo de espera mayor que el arranque en frío.
-- **Cálculo:** disponibilidad (%) = comprobaciones con éxito ÷ comprobaciones totales × 100, sobre una ventana fija (p. ej. 30 días). A 5 min son 288 comprobaciones al día y 8.640 en 30 días; el 95 % exige al menos 8.208 correctas, es decir, como máximo 432 fallidas (≈ 36 h de caída acumulada). Si el mínimo de réplicas es 0, los fallos por arranque en frío cuentan contra el 95 %.
+- **Servicio:** UptimeRobot (plan gratuito), monitor HTTP(s) cada 5 minutos, con aviso por correo.
+- **URL:** `https://nexfit-vert.vercel.app/api/actuator/health`, es decir, a través de Vercel hasta el backend (sin tocar la BD: `management.health.db.enabled=false`, así el monitor no despierta Neon). El monitor está fuera de Azure.
+- **Tiempo de espera:** debe ser mayor que el arranque en frío (~30 s).
+- **Cálculo (sin verificar hasta que haya datos):** disponibilidad (%) = comprobaciones con éxito ÷ comprobaciones totales × 100, sobre una ventana fija (p. ej. 30 días). A 5 min son 288 comprobaciones al día y 8.640 en 30 días; el 95 % exige al menos 8.208 correctas, es decir, como máximo 432 fallidas (≈ 36 h de caída acumulada). Si el mínimo de réplicas es 0, los fallos por arranque en frío cuentan contra el 95 %.
 
 ## Riesgo aceptado
 
-Si se llama al backend directamente, sin pasar por Vercel, `X-Forwarded-For` puede falsearse y la IP de auditoría sería falsa. Se acepta porque es un proyecto académico, los rangos de Vercel no son fijos (no se puede listar como proxy de confianza) y la IP solo se audita: no decide permisos.
+Con `CLIENT_IP_HEADER=X-Real-IP` (o `X-Vercel-Forwarded-For`), quien llame directo a la URL de Azure puede enviar esa cabecera y **falsificar la IP de sus propios eventos** (Azure solo sobrescribe `X-Forwarded-For`). Con el valor por defecto no es posible, pero se pierde la IP del cliente tras Vercel. Los rangos de Vercel no son fijos (no se puede listar como proxy de confianza) y la IP solo se audita: no decide permisos. **Queda para decisión del grupo** si se acepta el riesgo por ser un proyecto académico.
 
-## Verificación pendiente tras desplegar
+## Verificación pendiente
 
-- [ ] `http://<dominio>/...` (sin cifrar) no expone la app: redirige a HTTPS o se rechaza.
-- [ ] A través de Vercel, el `LOGIN` de `audit_events` guarda la IP del cliente real, no la de Vercel ni la de Azure.
-- [ ] A través de Vercel, `GET /api/actuator/health` devuelve la cookie `XSRF-TOKEN` con `Path=/` y el login desde el navegador responde 200.
-- [ ] El monitor devuelve 200 y se mide el arranque en frío para decidir el mínimo de réplicas.
+- [x] `http://<dominio>/...` redirige con 301 a HTTPS; el backend responde 200 en `/api/actuator/health` por HTTPS.
+- [x] A través de Vercel, `GET /api/actuator/health` devuelve la cookie `XSRF-TOKEN` con `Path=/`, y el login con el token CSRF responde 401 (credenciales inválidas) y no 403, es decir, el CSRF funciona.
+- [ ] **Pendiente:** un login exitoso a través de Vercel no se probó porque aún no hay usuarios (NEX-15) ni pantalla de login.
+- [x] A través de Vercel, con `CLIENT_IP_HEADER=X-Real-IP` en Azure, el `LOGIN` de `audit_events` guarda la IP real del cliente.
+- [x] El rewrite de `/api/*` de Vercel hacia Azure funciona.
+- [x] Monitor de UptimeRobot configurado (cada 5 minutos, aviso por correo).
+- [ ] **Sin verificar:** cálculo del 95 % con datos reales del monitor.
+- [ ] **Sin verificar:** costo real en Azure for Students y decisión del mínimo de réplicas (0 o 1).
+
+### Presupuesto de Azure
+
+Hay un presupuesto de **USD 10 mensuales** con alertas reales al **80 %** y al **100 %**. No tiene grupo de acciones porque la política de regiones de la suscripción no lo permite. El consumo real se revisa en **Cost analysis** del portal de Azure.
