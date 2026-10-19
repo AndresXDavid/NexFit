@@ -124,8 +124,11 @@ class CsrfCookieTests {
                 + "JOIN spring_session s ON s.primary_id = a.session_primary_id WHERE s.session_id = ?",
             new String(java.util.Base64.getDecoder().decode(cookie.getValue()), StandardCharsets.UTF_8));
         // La sesión guarda la identidad y el índice por usuario de Spring Session (para poder revocar sesiones, US-02).
-        assertThat(attrs).extracting(a -> a.get("attribute_name")).containsExactlyInAnyOrder("NEXFIT_USER_ID",
-            org.springframework.session.FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME);
+        /*assertThat(attrs).extracting(a -> a.get("attribute_name")).containsExactlyInAnyOrder("NEXFIT_USER_ID",
+            org.springframework.session.FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME);*/
+            assertThat(attrs).extracting(a -> a.get("attribute_name")).containsExactlyInAnyOrder("NEXFIT_USER_ID",
+            "NEXFIT_ORG_ID",
+            org.springframework.session.FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME); 
         Map<String, Object> identity = attrs.stream()
             .filter(a -> "NEXFIT_USER_ID".equals(a.get("attribute_name"))).findFirst().orElseThrow();
         String bytes = new String((byte[]) identity.get("attribute_bytes"), StandardCharsets.ISO_8859_1);

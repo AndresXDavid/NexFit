@@ -120,7 +120,9 @@ class AuthTests {
         assertThat(r.getResponse().getStatus()).isEqualTo(200);
         assertThat(sessionCookie(r)).isNotNull();
         assertThat(events("LOGIN", id)).isEqualTo(1);
-        mvc.perform(get("/test/authorities").cookie(sessionCookie(r))).andExpect(status().isOk());
+        // NEX-24: sin establecimiento activo no se puede operar.
+        mvc.perform(get("/test/authorities").cookie(sessionCookie(r))).andExpect(status().isForbidden());
+
     }
 
     // Criterio 2
@@ -178,8 +180,11 @@ class AuthTests {
     @Test
     void trasInactividadLaSesionDa401() throws Exception {
         newUser("inactiva@nexfit.test");
+        /*Cookie cookie = sessionCookie(login("inactiva@nexfit.test", PASSWORD));
+        mvc.perform(get("/test/authorities").cookie(cookie)).andExpect(status().isOk());*/
         Cookie cookie = sessionCookie(login("inactiva@nexfit.test", PASSWORD));
-        mvc.perform(get("/test/authorities").cookie(cookie)).andExpect(status().isOk());
+        // NEX-24: sin establecimiento activo no se puede operar.
+        mvc.perform(get("/test/authorities").cookie(cookie)).andExpect(status().isForbidden());
         jdbc.update("UPDATE spring_session SET last_access_time = last_access_time - 1860000, "
             + "expiry_time = expiry_time - 1860000");
         mvc.perform(get("/test/authorities").cookie(cookie)).andExpect(status().isUnauthorized());
@@ -215,9 +220,14 @@ class AuthTests {
         auths = mvc.perform(get("/test/authorities").cookie(cookie)).andReturn().getResponse().getContentAsString();
         assertThat(auths).isEqualTo("[\"trainer:" + org + "\"]");
 
-        jdbc.update("UPDATE organization_members SET is_active = false WHERE id = ?", member);
+        /*jdbc.update("UPDATE organization_members SET is_active = false WHERE id = ?", member);
         auths = mvc.perform(get("/test/authorities").cookie(cookie)).andReturn().getResponse().getContentAsString();
         assertThat(auths).isEqualTo("[]");
+
+        jdbc.update("UPDATE users SET is_active = false WHERE id = ?", user); */
+        jdbc.update("UPDATE organization_members SET is_active = false WHERE id = ?", member);
+        // NEX-24: sin afiliación vigente hay que volver a elegir establecimiento; la sesión sigue viva.
+        mvc.perform(get("/test/authorities").cookie(cookie)).andExpect(status().isForbidden());
 
         jdbc.update("UPDATE users SET is_active = false WHERE id = ?", user);
         mvc.perform(get("/test/authorities").cookie(cookie)).andExpect(status().isUnauthorized());
@@ -229,8 +239,12 @@ class AuthTests {
         long org = newOrg();
         affiliate(user, org, "staff");
         Cookie cookie = sessionCookie(login("gym@nexfit.test", PASSWORD));
-        jdbc.update("UPDATE organizations SET is_active = false WHERE id = ?", org);
+        /*jdbc.update("UPDATE organizations SET is_active = false WHERE id = ?", org);
         String auths = mvc.perform(get("/test/authorities").cookie(cookie)).andReturn().getResponse().getContentAsString();
-        assertThat(auths).isEqualTo("[]");
+        assertThat(auths).isEqualTo("[]");*/
+        jdbc.update("UPDATE organizations SET is_active = false WHERE id = ?", org);
+        // NEX-24: el gimnasio desactivado invalida la selección; la sesión sigue viva.
+        mvc.perform(get("/test/authorities").cookie(cookie)).andExpect(status().isForbidden());
+    
     }
 }
