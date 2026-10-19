@@ -2,6 +2,9 @@ package com.nexfit.auth;
 
 import com.nexfit.audit.AuditEventType;
 import com.nexfit.audit.AuditService;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -11,7 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Inicio y cierre de sesión (US-01) y bloqueo por intentos fallidos (US-03, RN-38).
+ * Inicio y cierre de sesión (US-01), bloqueo por intentos fallidos (US-03, RN-38)
+ * y selección de establecimiento (US-05, NEX-24).
  * No lanza excepciones por credenciales inválidas: así la auditoría se confirma.
  */
 @Service
@@ -41,8 +45,11 @@ public class AuthService {
 
     private record Candidate(long id, String passwordHash, boolean usable, boolean mustChangePassword) { }
 
-    /** Resultado de un inicio de sesión válido; {@code mustChangePassword} = contraseña temporal pendiente de cambio. */
-    public record LoginResult(long userId, boolean mustChangePassword) { }
+    /** Establecimiento donde el usuario puede operar: id, nombre y sus roles en él. */
+    public record Establishment(long organizationId, String name, List<String> roles) { }
+
+    /** Resultado de un inicio de sesión válido. */
+    public record LoginResult(long userId, boolean mustChangePassword, List<Establishment> establishments) { }
 
     /** Resultado de {@link #changePassword}. */
     public enum PasswordChangeResult { CHANGED, TOO_SHORT, WRONG_CURRENT, SAME_AS_CURRENT }
@@ -71,7 +78,7 @@ public class AuthService {
             long id = found.get().id();
             resetFailedAttempts(id);
             audit.record(AuditEventType.LOGIN, id, null, "user", id, ip, null);
-            return Optional.of(new LoginResult(id, found.get().mustChangePassword()));
+            return Optional.of(new LoginResult(id, found.get().mustChangePassword(), establishments(id)));
         }
         Long id = found.map(Candidate::id).orElse(null);
         audit.record(AuditEventType.LOGIN_FAILED, id, null, id == null ? null : "user", id, ip, null);
@@ -82,6 +89,58 @@ public class AuthService {
                 Map.of("lockMinutes", LOCK_MINUTES));
         }
         return Optional.empty();
+    }
+
+    /**
+     * Establecimientos donde el usuario puede operar (US-05, NEX-24): afiliación activa
+     * en organización activa, con sus roles. Vacía para el master (D-13: entra directo
+     * al contexto de plataforma, sin establecimiento).
+     */
+    public List<Establishment> establishments(long userId) {
+        Boolean admin = jdbc.sql("SELECT is_platform_admin FROM users WHERE id = :id")
+            .param("id", userId)
+            .query((rs, n) -> rs.getBoolean(1))
+            .optional()
+            .orElse(false);
+        if (admin) {
+            return List.of();
+        }
+        record Row(long orgId, String name, String role) { }
+        List<Row> rows = jdbc.sql("""
+                SELECT o.id, o.name, mr.role::text AS role
+                FROM organization_members om
+                JOIN organizations o ON o.id = om.organization_id AND o.is_active
+                JOIN member_roles mr ON mr.member_id = om.id
+                WHERE om.user_id = :id AND om.is_active
+                ORDER BY o.name, mr.role
+                """)
+            .param("id", userId)
+            .query((rs, n) -> new Row(rs.getLong(1), rs.getString(2), rs.getString(3)))
+            .list();
+        Map<Long, Establishment> byOrg = new LinkedHashMap<>();
+        for (Row r : rows) {
+            byOrg.computeIfAbsent(r.orgId(), k -> new Establishment(k, r.name(), new ArrayList<>()))
+                .roles().add(r.role());
+        }
+        return List.copyOf(byOrg.values());
+    }
+
+    /**
+     * Valida que el usuario pueda operar en ese establecimiento (US-05, NEX-24).
+     *
+     * @return false si el gimnasio está inactivo o la afiliación no está vigente.
+     */
+    public boolean canOperateIn(long userId, long organizationId) {
+        return jdbc.sql("""
+                SELECT EXISTS(
+                  SELECT 1 FROM organization_members om
+                  JOIN organizations o ON o.id = om.organization_id AND o.is_active
+                  WHERE om.user_id = :id AND om.organization_id = :org AND om.is_active)
+                """)
+            .param("id", userId)
+            .param("org", organizationId)
+            .query((rs, n) -> rs.getBoolean(1))
+            .single();
     }
 
     /**
