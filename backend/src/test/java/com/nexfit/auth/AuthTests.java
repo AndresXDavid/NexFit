@@ -211,8 +211,12 @@ class AuthTests {
             "SELECT a.attribute_name, a.attribute_bytes FROM spring_session_attributes a "
                 + "JOIN spring_session s ON s.primary_id = a.session_primary_id WHERE s.session_id = ?",
             new String(java.util.Base64.getDecoder().decode(cookie.getValue()), StandardCharsets.UTF_8));
-        assertThat(attrs).extracting(a -> a.get("attribute_name")).containsExactly("NEXFIT_USER_ID");
-        String bytes = new String((byte[]) attrs.get(0).get("attribute_bytes"), StandardCharsets.ISO_8859_1);
+        // La sesión guarda la identidad y el índice por usuario de Spring Session (para poder revocar sesiones, US-02).
+        assertThat(attrs).extracting(a -> a.get("attribute_name")).containsExactlyInAnyOrder("NEXFIT_USER_ID",
+            org.springframework.session.FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME);
+        Map<String, Object> identity = attrs.stream()
+            .filter(a -> "NEXFIT_USER_ID".equals(a.get("attribute_name"))).findFirst().orElseThrow();
+        String bytes = new String((byte[]) identity.get("attribute_bytes"), StandardCharsets.ISO_8859_1);
         assertThat(bytes).doesNotContain("admin").doesNotContain("ROLE").doesNotContain("SecurityContext");
     }
 

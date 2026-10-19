@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,31 +21,48 @@ public class AuthService {
     static final int MAX_FAILED_ATTEMPTS = 5;
     /** Duración del bloqueo automático (RN-38). */
     static final int LOCK_MINUTES = 15;
+    /** Largo mínimo de una contraseña nueva (RNF-06). */
+    static final int MIN_PASSWORD_LENGTH = 10;
 
     private final JdbcClient jdbc;
     private final PasswordEncoder encoder;
     private final AuditService audit;
+    private final FindByIndexNameSessionRepository<?> sessions;
     private final String dummyHash;
 
-    AuthService(JdbcClient jdbc, PasswordEncoder encoder, AuditService audit) {
+    AuthService(JdbcClient jdbc, PasswordEncoder encoder, AuditService audit,
+                FindByIndexNameSessionRepository<?> sessions) {
         this.jdbc = jdbc;
         this.encoder = encoder;
         this.audit = audit;
+        this.sessions = sessions;
         this.dummyHash = encoder.encode("nexfit-dummy");
     }
 
-    private record Candidate(long id, String passwordHash, boolean usable) { }
+    private record Candidate(long id, String passwordHash, boolean usable, boolean mustChangePassword) { }
 
-    /** @return id del usuario si las credenciales son válidas; vacío en cualquier otro caso. */
+    /** Resultado de un inicio de sesión válido; {@code mustChangePassword} = contraseña temporal pendiente de cambio. */
+    public record LoginResult(long userId, boolean mustChangePassword) { }
+
+    /** Resultado de {@link #changePassword}. */
+    public enum PasswordChangeResult { CHANGED, TOO_SHORT, WRONG_CURRENT, SAME_AS_CURRENT }
+
+    /** @return el usuario si las credenciales son válidas; vacío en cualquier otro caso. */
     @Transactional
-    public Optional<Long> login(String email, String password, String ip) {
+    public Optional<LoginResult> login(String email, String password, String ip) {
+        // "usable" = activa, sin bloqueo vigente y, si la contraseña es temporal, con vigencia sin vencer (US-02).
         Optional<Candidate> found = email == null ? Optional.empty() : jdbc.sql("""
-                SELECT id, password_hash,
-                       is_active AND (locked_until IS NULL OR locked_until <= now()) AS usable
+                SELECT id, password_hash, must_change_password,
+                       is_active
+                       AND (locked_until IS NULL OR locked_until <= now())
+                       AND NOT (must_change_password
+                                AND temp_password_expires_at IS NOT NULL
+                                AND temp_password_expires_at <= now()) AS usable
                 FROM users WHERE lower(email) = lower(:email)
                 """)
             .param("email", email.trim())
-            .query((rs, n) -> new Candidate(rs.getLong("id"), rs.getString("password_hash"), rs.getBoolean("usable")))
+            .query((rs, n) -> new Candidate(rs.getLong("id"), rs.getString("password_hash"),
+                rs.getBoolean("usable"), rs.getBoolean("must_change_password")))
             .optional();
         // Se compara siempre contra un hash para que el tiempo no delate si el correo existe.
         boolean matches = encoder.matches(password == null ? "" : password,
@@ -53,7 +71,7 @@ public class AuthService {
             long id = found.get().id();
             resetFailedAttempts(id);
             audit.record(AuditEventType.LOGIN, id, null, "user", id, ip, null);
-            return Optional.of(id);
+            return Optional.of(new LoginResult(id, found.get().mustChangePassword()));
         }
         Long id = found.map(Candidate::id).orElse(null);
         audit.record(AuditEventType.LOGIN_FAILED, id, null, id == null ? null : "user", id, ip, null);
@@ -102,6 +120,41 @@ public class AuthService {
                 """)
             .param("id", userId)
             .update();
+    }
+
+    /**
+     * Cambia la contraseña de quien tiene la sesión abierta (US-02, RF-102): la temporal del primer
+     * ingreso o una voluntaria. Siempre exige la contraseña actual (en el caso de la temporal, la temporal).
+     * Guarda solo el hash, limpia la marca de cambio pendiente y su vigencia, y revoca las demás
+     * sesiones del usuario; la actual se conserva. No se audita: la lista de eventos (RF-105) incluye el
+     * restablecimiento asistido, no el cambio propio.
+     */
+    @Transactional
+    public PasswordChangeResult changePassword(long userId, String current, String newPassword,
+                                               String currentSessionId) {
+        if (newPassword == null || newPassword.length() < MIN_PASSWORD_LENGTH) {
+            return PasswordChangeResult.TOO_SHORT;
+        }
+        String storedHash = jdbc.sql("SELECT password_hash FROM users WHERE id = :id")
+            .param("id", userId).query(String.class).single();
+        if (current == null || !encoder.matches(current, storedHash)) {
+            return PasswordChangeResult.WRONG_CURRENT;
+        }
+        if (encoder.matches(newPassword, storedHash)) {
+            return PasswordChangeResult.SAME_AS_CURRENT;
+        }
+        jdbc.sql("""
+                UPDATE users
+                SET password_hash = :hash, must_change_password = false, temp_password_expires_at = NULL
+                WHERE id = :id
+                """)
+            .param("hash", encoder.encode(newPassword))
+            .param("id", userId)
+            .update();
+        sessions.findByPrincipalName(String.valueOf(userId)).keySet().stream()
+            .filter(sessionId -> !sessionId.equals(currentSessionId))
+            .forEach(sessionId -> sessions.deleteById(sessionId));
+        return PasswordChangeResult.CHANGED;
     }
 
     @Transactional
