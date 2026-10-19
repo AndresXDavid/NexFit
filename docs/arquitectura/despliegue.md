@@ -88,5 +88,5 @@ Si se llama al backend directamente, sin pasar por Vercel, `X-Forwarded-For` pue
 
 - [ ] `http://<dominio>/...` (sin cifrar) no expone la app: redirige a HTTPS o se rechaza.
 - [ ] A través de Vercel, el `LOGIN` de `audit_events` guarda la IP del cliente real, no la de Vercel ni la de Azure.
-- [ ] **Bloqueante conocido:** el login desde Angular/Vercel no funcionará hasta corregir la cookie `XSRF-TOKEN` (el servidor no la emite porque `CsrfCookieFilter` corre antes que `CsrfFilter`; issue aparte, fuera de NEX-16).
+- [ ] A través de Vercel, `GET /api/actuator/health` devuelve la cookie `XSRF-TOKEN` con `Path=/` y el login desde el navegador responde 200.
 - [ ] El monitor devuelve 200 y se mide el arranque en frío para decidir el mínimo de réplicas.

@@ -48,9 +48,12 @@ class ForwardedIpTests {
         HttpClient http = HttpClient.newHttpClient();
         String base = "http://localhost:" + port + "/api";
 
-        // Envío doble con valor fijo: esta prueba solo verifica la IP de auditoría. El servidor hoy no
-        // emite la cookie XSRF-TOKEN (CsrfCookieFilter corre antes que CsrfFilter); eso se corrige en otra issue.
-        String xsrf = "token-de-prueba";
+        // Como Angular: primero un GET para recibir la cookie XSRF-TOKEN y luego se devuelve en Cookie y cabecera.
+        HttpResponse<Void> first = http.send(
+            HttpRequest.newBuilder(URI.create(base + "/actuator/health")).build(), HttpResponse.BodyHandlers.discarding());
+        String xsrf = first.headers().allValues("Set-Cookie").stream()
+            .filter(h -> h.startsWith("XSRF-TOKEN=")).findFirst().orElseThrow()
+            .split(";")[0].substring("XSRF-TOKEN=".length());
 
         HttpResponse<Void> login = http.send(HttpRequest.newBuilder(URI.create(base + "/auth/login"))
             .header("Content-Type", "application/json")
