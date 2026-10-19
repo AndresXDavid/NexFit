@@ -24,6 +24,10 @@ spring:
 
 server:
   port: ${PORT:8080}          # Cloud Run inyecta PORT
+  forward-headers-strategy: native   # RemoteIpValve: getRemoteAddr() = IP del cliente (auditoría)
+  tomcat:
+    remoteip:
+      internal-proxies: .*    # Vercel -> proxy de la nube -> app; ver docs/arquitectura/despliegue.md
   servlet:
     context-path: /api
     session:
