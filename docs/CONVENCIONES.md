@@ -101,12 +101,12 @@ Todo cambio entra por PR contra `develop`, con la plantilla: issue que cierra, �
 
 - Nunca en el código ni en commits: contraseñas, claves, cadenas de conexión.
 - En local van en `.env` (ignorado por git); la lista de variables está en `.env.example`.
-- En producción: variables de Cloud Run y GitHub Secrets.
+- En producción: variables de Azure Container Apps y GitHub Secrets.
 - Si se sube un secreto por error, se **rota** de inmediato (cambiarlo en Neon/GCP); borrarlo del historial no basta.
 
 ## CI/CD
 
 - `ci.yml` corre en cada PR: `backend` (compila y ejecuta las pruebas con Testcontainers sobre PostgreSQL 18, lo que incluye correr las migraciones Flyway desde cero) y `frontend` (lint con `npm run lint` y build de Angular). Ambos jobs deben pasar para poder mezclar; el resultado se ve en la sección de checks del PR.
-- Despliegue: `main` → Cloud Run (API, `backend/Dockerfile`) + Vercel (frontend), con la BD en Neon. Se configura con TT-09; la idea es desplegar desde la primera semana para que R6 no sea un «big bang».
+- Despliegue: `main` → Azure Container Apps (API, `backend/Dockerfile`) + Vercel (frontend), con la BD en Neon. Se configura con TT-09; la idea es desplegar desde la primera semana para que R6 no sea un «big bang».
 - **Protección de `develop` (activa):** un ruleset exige los checks `backend` y `frontend` en verde, PR obligatorio sin aprobaciones y prohíbe borrar la rama o reescribir su historial. Un PR con lint o pruebas fallidas no se puede mezclar.
 - Pendientes: pruebas del frontend en el CI (aún no hay `*.spec.ts`), respaldo diario (TT-10) y cierre de ingresos (US-38) se agregan con sus issues.
