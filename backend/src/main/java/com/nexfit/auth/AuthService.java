@@ -2,15 +2,24 @@ package com.nexfit.auth;
 
 import com.nexfit.audit.AuditEventType;
 import com.nexfit.audit.AuditService;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Inicio y cierre de sesión (US-01). No lanza excepciones por credenciales inválidas: así la auditoría se confirma. */
+/**
+ * Inicio y cierre de sesión (US-01) y bloqueo por intentos fallidos (US-03, RN-38).
+ * No lanza excepciones por credenciales inválidas: así la auditoría se confirma.
+ */
 @Service
 public class AuthService {
+
+    /** Fallos consecutivos que bloquean la cuenta (RN-38). */
+    static final int MAX_FAILED_ATTEMPTS = 5;
+    /** Duración del bloqueo automático (RN-38). */
+    static final int LOCK_MINUTES = 15;
 
     private final JdbcClient jdbc;
     private final PasswordEncoder encoder;
@@ -42,12 +51,57 @@ public class AuthService {
             found.map(Candidate::passwordHash).orElse(dummyHash));
         if (found.isPresent() && matches && found.get().usable()) {
             long id = found.get().id();
+            resetFailedAttempts(id);
             audit.record(AuditEventType.LOGIN, id, null, "user", id, ip, null);
             return Optional.of(id);
         }
         Long id = found.map(Candidate::id).orElse(null);
         audit.record(AuditEventType.LOGIN_FAILED, id, null, id == null ? null : "user", id, ip, null);
+        // Solo cuentan los fallos de cuentas activas y no bloqueadas: un intento durante el bloqueo
+        // no suma ni lo alarga (si lo alargara, cualquiera podría mantener bloqueada a otra persona).
+        if (found.isPresent() && found.get().usable() && registerFailedAttempt(found.get().id())) {
+            audit.record(AuditEventType.ACCOUNT_LOCKED, id, null, "user", id, ip,
+                Map.of("lockMinutes", LOCK_MINUTES));
+        }
         return Optional.empty();
+    }
+
+    /**
+     * Suma un fallo y, si llega al máximo, bloquea la cuenta. Todo en un solo UPDATE atómico: leer
+     * el contador y luego escribirlo perdería fallos cuando llegan intentos simultáneos. El WHERE
+     * repite la condición "activa y no bloqueada" para que un intento concurrente que llegó tarde
+     * no sume ni extienda un bloqueo que otro ya aplicó. Al bloquear, el contador vuelve a 0
+     * para que, pasados los 15 minutos, la persona tenga de nuevo 5 intentos.
+     *
+     * @return true si este fallo fue el que bloqueó la cuenta
+     */
+    private boolean registerFailedAttempt(long userId) {
+        return jdbc.sql("""
+                UPDATE users
+                SET failed_login_count = CASE WHEN failed_login_count + 1 >= :max
+                                              THEN 0 ELSE failed_login_count + 1 END,
+                    locked_until = CASE WHEN failed_login_count + 1 >= :max
+                                        THEN now() + make_interval(mins => :minutes)
+                                        ELSE locked_until END
+                WHERE id = :id AND is_active AND (locked_until IS NULL OR locked_until <= now())
+                RETURNING (locked_until IS NOT NULL AND locked_until > now()) AS just_locked
+                """)
+            .param("max", MAX_FAILED_ATTEMPTS)
+            .param("minutes", LOCK_MINUTES)
+            .param("id", userId)
+            .query((rs, n) -> rs.getBoolean("just_locked"))
+            .optional()
+            .orElse(false);
+    }
+
+    /** Un acceso exitoso reinicia el contador (D-15: el SRS no lo define; se asume reinicio). */
+    private void resetFailedAttempts(long userId) {
+        jdbc.sql("""
+                UPDATE users SET failed_login_count = 0, locked_until = NULL
+                WHERE id = :id AND (failed_login_count <> 0 OR locked_until IS NOT NULL)
+                """)
+            .param("id", userId)
+            .update();
     }
 
     @Transactional
