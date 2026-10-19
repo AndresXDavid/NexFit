@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -200,21 +199,7 @@ class AuthTests {
         assertThat(setCookie).contains("HttpOnly").contains("Secure").contains("SameSite=Lax");
     }
 
-    // Criterio 7
-    @Test
-    void laSesionGuardaSoloLaIdentidadNoLosRoles() throws Exception {
-        long id = newUser("ident@nexfit.test");
-        affiliate(id, newOrg(), "admin");
-        Cookie cookie = sessionCookie(login("ident@nexfit.test", PASSWORD));
-        mvc.perform(get("/test/authorities").cookie(cookie)).andExpect(status().isOk());
-        List<Map<String, Object>> attrs = jdbc.queryForList(
-            "SELECT a.attribute_name, a.attribute_bytes FROM spring_session_attributes a "
-                + "JOIN spring_session s ON s.primary_id = a.session_primary_id WHERE s.session_id = ?",
-            new String(java.util.Base64.getDecoder().decode(cookie.getValue()), StandardCharsets.UTF_8));
-        assertThat(attrs).extracting(a -> a.get("attribute_name")).containsExactly("NEXFIT_USER_ID");
-        String bytes = new String((byte[]) attrs.get(0).get("attribute_bytes"), StandardCharsets.ISO_8859_1);
-        assertThat(bytes).doesNotContain("admin").doesNotContain("ROLE").doesNotContain("SecurityContext");
-    }
+    // Criterio 7: ver CsrfCookieTests.laSesionGuardaSoloLaIdentidadNoLosRoles (necesita el flujo CSRF real, sin csrf()).
 
     // Criterio 8
     @Test
