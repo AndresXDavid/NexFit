@@ -20,6 +20,7 @@ import org.springframework.session.web.http.DefaultCookieSerializer;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
@@ -55,16 +56,19 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, JdbcClient jdbc) throws Exception {
+        // Path=/ (no el context-path /api): Angular lee la cookie con document.cookie desde cualquier ruta.
+        CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        csrfRepository.setCookiePath("/");
         http
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/health/**", "/auth/login").permitAll()
                 .anyRequest().authenticated())
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .csrf(csrf -> csrf
-                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .csrfTokenRepository(csrfRepository)
                 .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
             .addFilterAfter(new SessionUserFilter(jdbc), SecurityContextHolderFilter.class)
-            .addFilterAfter(new CsrfCookieFilter(), SessionUserFilter.class);
+            .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class);
         return http.build();
     }
 
