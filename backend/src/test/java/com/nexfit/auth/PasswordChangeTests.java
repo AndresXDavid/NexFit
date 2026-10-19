@@ -122,7 +122,9 @@ class PasswordChangeTests {
         newOwnUser("propia@nexfit.test");
         MvcResult r = login("propia@nexfit.test", OWN);
         assertThat(r.getResponse().getContentAsString(StandardCharsets.UTF_8)).contains("\"mustChangePassword\":false");
-        assertThat(probe(r.getResponse().getCookie("NEXFIT_SESSION"))).isEqualTo(200);
+        //assertThat(probe(r.getResponse().getCookie("NEXFIT_SESSION"))).isEqualTo(200);
+         // NEX-24: sin establecimiento activo no se puede operar.
+        assertThat(probe(r.getResponse().getCookie("NEXFIT_SESSION"))).isEqualTo(403);
     }
 
     // Criterio 2
@@ -156,7 +158,7 @@ class PasswordChangeTests {
             .isFalse();
         assertThat(jdbc.queryForObject("SELECT temp_password_expires_at FROM users WHERE id = ?",
             java.sql.Timestamp.class, id)).isNull();
-        assertThat(probe(cookie)).isEqualTo(200);   // la misma sesión ya puede continuar
+        assertThat(probe(cookie)).isEqualTo(403);   // la misma sesión sigue viva: autenticada, falta elegir establecimiento
         assertThat(login("valida@nexfit.test", TEMP).getResponse().getStatus()).isEqualTo(401);
         assertThat(login("valida@nexfit.test", NEW).getResponse().getStatus()).isEqualTo(200);
     }
@@ -235,12 +237,12 @@ class PasswordChangeTests {
         Cookie actual = loginOk("sesiones@nexfit.test", OWN);
         Cookie otraA = loginOk("sesiones@nexfit.test", OWN);
         Cookie otraB = loginOk("sesiones@nexfit.test", OWN);
-        assertThat(probe(otraA)).isEqualTo(200);
-        assertThat(probe(otraB)).isEqualTo(200);
+        assertThat(probe(otraA)).isEqualTo(403);
+        assertThat(probe(otraB)).isEqualTo(403);
 
         assertThat(changePassword(actual, OWN, NEW).getResponse().getStatus()).isEqualTo(204);
 
-        assertThat(probe(actual)).isEqualTo(200);
+        assertThat(probe(actual)).isEqualTo(403);
         assertThat(probe(otraA)).isEqualTo(401);
         assertThat(probe(otraB)).isEqualTo(401);
     }
@@ -255,7 +257,8 @@ class PasswordChangeTests {
 
         assertThat(changePassword(mia, OWN, NEW).getResponse().getStatus()).isEqualTo(204);
 
-        assertThat(probe(ajena)).isEqualTo(200);
+        assertThat(probe(ajena)).isEqualTo(403);
+
     }
 
     @Test
