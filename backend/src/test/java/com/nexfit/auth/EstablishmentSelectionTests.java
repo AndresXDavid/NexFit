@@ -130,6 +130,9 @@ class EstablishmentSelectionTests {
         long orgB = newOrg("Gym B", true);
         affiliate(user, orgA, "staff", true);
         affiliate(user, orgB, "trainer", true);
+        long admin = newUser("admin-elige@nexfit.test", false);
+        affiliate(admin, orgA, "admin", true);
+        affiliate(admin, orgB, "admin", true);
 
         Cookie c = cookie(login("elige@nexfit.test", PASSWORD));
         assertThat(selectEstablishment(c, orgA).getResponse().getStatus()).isEqualTo(204);
@@ -189,6 +192,7 @@ class EstablishmentSelectionTests {
         long org = newOrg("Gym", true);
         affiliate(user, org, "staff", true);
         affiliate(user, org, "trainer", true);
+        affiliate(newUser("admin-una@nexfit.test", false), org, "admin", true);
 
         Cookie c = cookie(login("una@nexfit.test", PASSWORD));
         assertThat(authorities(c)).isEqualTo("[\"staff:" + org + "\",\"trainer:" + org + "\"]");

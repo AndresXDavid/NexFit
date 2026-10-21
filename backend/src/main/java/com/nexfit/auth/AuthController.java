@@ -2,6 +2,7 @@ package com.nexfit.auth;
 
 import com.nexfit.auth.AuthService.LoginResult;
 import com.nexfit.auth.AuthService.PasswordChangeResult;
+import com.nexfit.shared.AnyAuthenticated;
 import com.nexfit.shared.SessionUserFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -39,6 +40,8 @@ class AuthController {
         this.auth = auth;
     }
 
+    // Declarativo: /auth/login es pública por SecurityConfig, no por esta anotación.
+    @AnyAuthenticated
     @PostMapping("/login")
     ResponseEntity<Map<String, Object>> login(@RequestBody LoginRequest body, HttpServletRequest request) {
         Optional<LoginResult> result = auth.login(body.email(), body.password(), request.getRemoteAddr());
@@ -71,6 +74,7 @@ class AuthController {
      * Establecimientos donde el usuario puede operar (US-05, NEX-24). El front los muestra
      * para elegir cuando hay más de uno.
      */
+    @AnyAuthenticated
     @GetMapping("/establishments")
     ResponseEntity<List<EstablishmentDto>> establishments(HttpServletRequest request) {
         Long id = userIdOf(request);
@@ -83,6 +87,7 @@ class AuthController {
     }
 
     /** Elige (o cambia) el establecimiento activo de la sesión (US-05, NEX-24). */
+    @AnyAuthenticated
     @PostMapping("/establishment")
     ResponseEntity<Map<String, Object>> selectEstablishment(@RequestBody SelectEstablishmentRequest body,
                                                            HttpServletRequest request) {
@@ -100,6 +105,7 @@ class AuthController {
     }
 
     /** Cambio de contraseña (temporal o voluntario) de quien tiene la sesión abierta. */
+    @AnyAuthenticated
     @PostMapping("/password")
     ResponseEntity<Map<String, Object>> changePassword(@RequestBody ChangePasswordRequest body,
                                                         HttpServletRequest request) {
@@ -123,6 +129,7 @@ class AuthController {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", message));
     }
 
+    @AnyAuthenticated
     @PostMapping("/logout")
     ResponseEntity<Void> logout(HttpServletRequest request) {
         Long id = userIdOf(request);

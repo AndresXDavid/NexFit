@@ -26,6 +26,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * <p>Sin establecimiento activo no se puede operar: cualquier ruta fuera de las permitidas
  * responde 403 con el código ESTABLISHMENT_REQUIRED para que el cliente muestre el selector.
  *
+ * <p>Un establecimiento sin Administrador activo (RN-04) tampoco opera: las rutas fuera de esas
+ * mismas permitidas responden 403 ESTABLISHMENT_WITHOUT_ADMIN. El master no se ve afectado.
+ *
  * <p>Si el usuario tiene una contraseña temporal sin cambiar (US-02), solo puede cambiarla o cerrar
  * sesión: cualquier otra ruta recibe 403 con código PASSWORD_CHANGE_REQUIRED y no se le dan
  * autoridades. Una temporal con la vigencia vencida deja de servir (401).
@@ -95,6 +98,14 @@ public class SessionUserFilter extends OncePerRequestFilter {
                 Object orgAttr = session.getAttribute(ORG_ID_ATTRIBUTE);
                 Long orgId = orgAttr instanceof Long l ? l : null;
                 if (orgId != null && activeEstablishment(userId, orgId)) {
+                    if (!ALLOWED_WITHOUT_ESTABLISHMENT.contains(pathWithinApp(request)) && !hasActiveAdmin(orgId)) {
+                        // RN-04: sin Administrador asignado el establecimiento no opera (el master sí, por su rama).
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().write("{\"code\":\"ESTABLISHMENT_WITHOUT_ADMIN\","
+                            + "\"message\":\"El establecimiento no tiene un Administrador asignado\"}");
+                        return;
+                    }
                     // Solo los roles del establecimiento activo (RN-03: la unión de sus roles).
                     jdbc.sql("""
                             SELECT mr.role::text || ':' || om.organization_id
@@ -129,6 +140,20 @@ public class SessionUserFilter extends OncePerRequestFilter {
                   WHERE om.user_id = :id AND om.organization_id = :org AND om.is_active)
                 """)
             .param("id", userId)
+            .param("org", orgId)
+            .query((rs, n) -> rs.getBoolean(1))
+            .single();
+    }
+
+    /** ¿Tiene el establecimiento un Administrador con afiliación y cuenta activas? (RN-04) */
+    private boolean hasActiveAdmin(long orgId) {
+        return jdbc.sql("""
+                SELECT EXISTS(
+                  SELECT 1 FROM organization_members om
+                  JOIN member_roles mr ON mr.member_id = om.id AND mr.role = 'admin'
+                  JOIN users u ON u.id = om.user_id AND u.is_active
+                  WHERE om.organization_id = :org AND om.is_active)
+                """)
             .param("org", orgId)
             .query((rs, n) -> rs.getBoolean(1))
             .single();
