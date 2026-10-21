@@ -85,6 +85,18 @@ Todo cambio entra por PR contra `develop`, con la plantilla: issue que cierra, �
 
 **Definition of Done:** criterios de aceptación verificados, pruebas automáticas de las reglas nuevas, CI en verde y sin secretos en el código.
 
+## Autorización de endpoints (NEX-25)
+
+Todo endpoint de `com.nexfit` declara su regla; sin regla responde `403 ACCESS_RULE_MISSING` (default-deny) y `HandlerRulesScanTest` falla.
+
+- `@RequiresAccess(funcion = Funcion.X, accion = Accion.Y)`: solo pasan los roles que la matriz 3.7 permite (unión de roles, RN-03). Si la función o acción no existe, se agrega en `Permisos`, no en el controller.
+- `@AnyAuthenticated`: basta una sesión válida (rutas de `/auth`, sin regla de rol). No exime de filtrar por establecimiento.
+- El `organizationId` sale solo de `ActiveOrganization.id()`, nunca de la ruta, el cuerpo o una cabecera. Consulta por id **y** `organization_id` (`WHERE id = :id AND organization_id = :org`); si no hay fila, `404` (el mismo de un id inexistente).
+- Códigos 403 que consume el frontend: `ACCESS_DENIED` (sin permiso para la función), `ACCESS_RULE_MISSING` (endpoint sin regla; error de desarrollo), `ESTABLISHMENT_WITHOUT_ADMIN` (gimnasio sin Administrador activo, RN-04; el master no se ve afectado). Junto a ellos siguen `ESTABLISHMENT_REQUIRED` y `PASSWORD_CHANGE_REQUIRED`.
+- Contraseñas: la matriz abrevia; cambiar la propia aplica a todos los roles (RF-102).
+- La matriz solo es la compuerta por rol. Las reglas de datos (alumnos asignados, recursos propios) las implementa cada historia.
+- `@ReglaDeNegocio` solo acepta las 12 RN de `REGLAS_BACKEND` (RN-03, 05, 06, 07, 08, 19, 24, 30, 34, 35, 36 y 38); otra rompe el build.
+
 ## Base de datos: migraciones Flyway como código
 
 - Solo en `backend/src/main/resources/db/migration`: `V1__spring_session_jdbc.sql` → `V2__...` (MER v4: 23 tablas, 10 enums, NEX-12) → `V3__...` por cada cambio posterior.

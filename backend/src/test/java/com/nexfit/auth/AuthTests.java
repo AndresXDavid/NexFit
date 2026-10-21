@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.nexfit.shared.AnyAuthenticated;
 import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -48,6 +49,7 @@ class AuthTests {
     static class Probe {
         @RestController
         static class ProbeController {
+            @AnyAuthenticated
             @GetMapping("/test/authorities")
             List<String> authorities(Authentication auth) {
                 return auth.getAuthorities().stream().map(GrantedAuthority::getAuthority).sorted().toList();
@@ -212,6 +214,7 @@ class AuthTests {
         long user = newUser("cambio@nexfit.test");
         long org = newOrg();
         long member = affiliate(user, org, "staff");
+        affiliate(newUser("admin-cambio@nexfit.test"), org, "admin");
         Cookie cookie = sessionCookie(login("cambio@nexfit.test", PASSWORD));
         String auths = mvc.perform(get("/test/authorities").cookie(cookie)).andReturn().getResponse().getContentAsString();
         assertThat(auths).isEqualTo("[\"staff:" + org + "\"]");
